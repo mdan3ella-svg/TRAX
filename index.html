@@ -79,7 +79,8 @@
             Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
             DollarSign, FileText, ScanLine, Upload, Zap, Image as ImageIcon, 
             FileImage, TrendingUp, Grid3X3, Calculator, PieChart, FileSpreadsheet, Plus, Copy, Eye, EyeOff,
-            ToggleLeft, ToggleRight, LayoutTemplate, Magnet, Info, X, Cpu, Database
+            ToggleLeft, ToggleRight, LayoutTemplate, Magnet, Info, X, Cpu, Database, Glasses, MonitorSmartphone,
+            Briefcase, Target, CheckCircle2, AlertCircle
         } from 'lucide-react';
         import * as THREE from 'three';
         import { v4 as uuidv4 } from 'uuid';
@@ -99,6 +100,16 @@
             'GLASS_DBL':    { id: 'MAT-03', name: 'Glazing Dbl', cost: 450, unit: 'm²' },
             'COMPOSITE':    { id: 'MAT-04', name: 'Comp Panel', cost: 85, unit: 'm²' },
             'FURNITURE':    { id: 'MAT-05', name: 'Furnishing', cost: 500, unit: 'item' },
+        };
+
+        const DEFAULT_PROJECT_META = {
+            title: "Untitled Project",
+            code: "TRX-001",
+            lead: "Unassigned",
+            status: "DRAFT",
+            targetBudget: 500000,
+            targetGFA: 1500,
+            description: "Initial feasibility study."
         };
 
         const IFC_MAPPING = {
@@ -128,11 +139,8 @@
                         <stop offset="100%" stopColor="#8b5cf6" />
                     </linearGradient>
                 </defs>
-                {/* Grid Lines */}
                 <line x1="0" y1="22" x2="24" y2="22" stroke="#cbd5e1" strokeWidth="1" />
                 <line x1="2" y1="24" x2="2" y2="10" stroke="#cbd5e1" strokeWidth="1" />
-                
-                {/* Animated Riser */}
                 <motion.path
                     d="M2 20 L8 16 L14 18 L22 4"
                     fill="none"
@@ -153,7 +161,6 @@
             </svg>
         );
 
-        // TOOLTIP COMPONENT (White Glass)
         const Tooltip = ({ text, children }) => (
             <div className="relative group flex flex-col items-center justify-center">
                 {children}
@@ -226,6 +233,202 @@
 
         // --- 3. SUB-COMPONENTS ---
 
+        const ProjectScreen = ({ meta, setMeta, stats, levels, onClose }) => {
+            // Calculations for Metering
+            const budgetPercent = Math.min((stats.totalCost / meta.targetBudget) * 100, 100);
+            const gfaPercent = Math.min((stats.totalGFA / meta.targetGFA) * 100, 100);
+            
+            return (
+                <div className="absolute inset-0 z-50 bg-slate-100/50 flex items-center justify-center p-8 backdrop-blur-sm animate-in zoom-in-95 duration-200">
+                    <div className="glass-panel rounded-2xl p-0 w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden relative shadow-2xl">
+                        {/* Header */}
+                        <div className="p-6 border-b border-white bg-white/40 flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-500/30">
+                                    <Briefcase size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-800">PROJECT DASHBOARD</h2>
+                                    <p className="text-xs text-slate-500 font-mono tracking-widest">TEMPLATE & METERING CONFIGURATION</p>
+                                </div>
+                            </div>
+                            <button onClick={onClose} className="p-2 hover:bg-white rounded-full text-slate-400 hover:text-slate-800 transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-8 grid grid-cols-12 gap-8">
+                            
+                            {/* Left Column: Metadata Inputs */}
+                            <div className="col-span-4 space-y-6">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <FileText size={14}/> Project Identity
+                                </h3>
+                                
+                                <div className="space-y-4">
+                                    <div className="group">
+                                        <label className="text-[10px] font-bold text-slate-500 block mb-1">PROJECT TITLE</label>
+                                        <input 
+                                            type="text" value={meta.title} 
+                                            onChange={(e) => setMeta({...meta, title: e.target.value})}
+                                            className="w-full bg-white border border-slate-200 rounded p-2 text-sm font-bold text-slate-800 focus:border-blue-500 focus:outline-none shadow-sm transition-all"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block mb-1">JOB CODE</label>
+                                            <input 
+                                                type="text" value={meta.code}
+                                                onChange={(e) => setMeta({...meta, code: e.target.value})}
+                                                className="w-full bg-white border border-slate-200 rounded p-2 text-xs font-mono text-slate-600 focus:border-blue-500 focus:outline-none shadow-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block mb-1">LEAD ARCHITECT</label>
+                                            <input 
+                                                type="text" value={meta.lead}
+                                                onChange={(e) => setMeta({...meta, lead: e.target.value})}
+                                                className="w-full bg-white border border-slate-200 rounded p-2 text-xs text-slate-600 focus:border-blue-500 focus:outline-none shadow-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500 block mb-1">STATUS</label>
+                                        <select 
+                                            value={meta.status}
+                                            onChange={(e) => setMeta({...meta, status: e.target.value})}
+                                            className="w-full bg-white border border-slate-200 rounded p-2 text-xs font-bold text-slate-700 focus:border-blue-500 focus:outline-none shadow-sm cursor-pointer"
+                                        >
+                                            <option value="DRAFT">DRAFT / CONCEPT</option>
+                                            <option value="SCHEMATIC">SCHEMATIC DESIGN</option>
+                                            <option value="DD">DESIGN DEVELOPMENT</option>
+                                            <option value="CD">CONSTRUCTION DOCS</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500 block mb-1">DESCRIPTION</label>
+                                        <textarea 
+                                            value={meta.description}
+                                            onChange={(e) => setMeta({...meta, description: e.target.value})}
+                                            className="w-full bg-white border border-slate-200 rounded p-2 text-xs text-slate-600 focus:border-blue-500 focus:outline-none shadow-sm resize-none h-24"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Middle Column: Metering & Targets */}
+                            <div className="col-span-5 space-y-6">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <Target size={14}/> Performance Metering
+                                </h3>
+
+                                <div className="bg-white/50 border border-white rounded-xl p-6 shadow-sm space-y-6">
+                                    {/* Cost Meter */}
+                                    <div>
+                                        <div className="flex justify-between items-end mb-2">
+                                            <label className="text-[10px] font-bold text-slate-500">BUDGET UTILIZATION</label>
+                                            <div className="text-right">
+                                                <span className={`text-lg font-black ${stats.totalCost > meta.targetBudget ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                    ${(stats.totalCost/1000).toFixed(1)}k
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 ml-1">/ ${meta.targetBudget/1000}k</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-4 bg-slate-200 rounded-full overflow-hidden relative">
+                                            <div 
+                                                className={`absolute top-0 left-0 h-full transition-all duration-500 ${stats.totalCost > meta.targetBudget ? 'bg-red-500' : 'bg-emerald-500'}`}
+                                                style={{ width: `${Math.min((stats.totalCost/meta.targetBudget)*100, 100)}%` }}
+                                            ></div>
+                                            {/* Threshold Marker */}
+                                            <div className="absolute top-0 bottom-0 w-0.5 bg-slate-900/20" style={{left: '80%'}} title="80% Warning"></div>
+                                        </div>
+                                        <div className="mt-2">
+                                            <label className="text-[9px] font-bold text-slate-400">SET TARGET BUDGET ($)</label>
+                                            <input 
+                                                type="number" step="10000"
+                                                value={meta.targetBudget}
+                                                onChange={(e) => setMeta({...meta, targetBudget: parseFloat(e.target.value)})}
+                                                className="w-full mt-1 bg-white border border-slate-200 rounded p-1.5 text-xs font-mono text-slate-600 focus:border-emerald-500 focus:outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-slate-200"></div>
+
+                                    {/* GFA Meter */}
+                                    <div>
+                                        <div className="flex justify-between items-end mb-2">
+                                            <label className="text-[10px] font-bold text-slate-500">GFA EFFICIENCY</label>
+                                            <div className="text-right">
+                                                <span className="text-lg font-black text-blue-600">
+                                                    {(stats.totalGFA).toFixed(0)}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 ml-1">/ {meta.targetGFA} m²</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-4 bg-slate-200 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-blue-500 transition-all duration-500"
+                                                style={{ width: `${Math.min((stats.totalGFA/meta.targetGFA)*100, 100)}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="mt-2">
+                                            <label className="text-[9px] font-bold text-slate-400">SET TARGET AREA (m²)</label>
+                                            <input 
+                                                type="number" step="50"
+                                                value={meta.targetGFA}
+                                                onChange={(e) => setMeta({...meta, targetGFA: parseFloat(e.target.value)})}
+                                                className="w-full mt-1 bg-white border border-slate-200 rounded p-1.5 text-xs font-mono text-slate-600 focus:border-blue-500 focus:outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right Column: Structure */}
+                            <div className="col-span-3 space-y-6">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <Layers size={14}/> Template Structure
+                                </h3>
+                                <div className="bg-white/40 border border-white rounded-xl p-4 h-full">
+                                    <div className="text-[10px] font-bold text-slate-500 mb-2">ACTIVE LEVELS</div>
+                                    <div className="space-y-2 mb-6">
+                                        {levels.map(l => (
+                                            <div key={l.id} className="flex justify-between items-center text-xs bg-white p-2 rounded border border-slate-100 shadow-sm">
+                                                <span className="font-bold text-slate-700">{l.name}</span>
+                                                <span className="font-mono text-slate-400">{l.elevation}m</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <div className="text-[10px] font-bold text-slate-500 mb-2">LAYER CONFIG</div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {Object.values(LAYER_DEFS).map(ld => (
+                                            <div key={ld.label} className="flex items-center gap-2 text-[10px] text-slate-600 bg-white/50 p-1.5 rounded">
+                                                <div className="w-2 h-2 rounded-full" style={{background: ld.color}}></div>
+                                                {ld.label}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 border-t border-white bg-white/60 flex justify-between items-center">
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <CheckCircle2 size={14} className="text-emerald-500"/>
+                                <span>Changes are auto-saved to local kernel state.</span>
+                            </div>
+                            <button onClick={onClose} className="px-8 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all flex items-center gap-2 text-xs">
+                                RETURN TO WORKSPACE
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const InfoScreen = ({ onClose }) => (
             <div className="absolute inset-0 z-50 bg-slate-100/50 flex items-center justify-center p-8 backdrop-blur-sm animate-in fade-in duration-300">
                 <div className="glass-panel rounded-2xl p-8 w-full max-w-4xl max-h-full overflow-y-auto relative border-white">
@@ -276,14 +479,34 @@
                                             <span className="text-[10px] text-slate-500">Active level isolation with vertical context rendering.</span>
                                         </div>
                                     </li>
-                                     <li className="flex items-start gap-3">
-                                        <div className="p-1.5 bg-amber-100 rounded text-amber-600 mt-0.5"><FileImage size={12}/></div>
-                                        <div>
-                                            <strong className="text-slate-800 text-xs block">Vector Extrusion Pipeline</strong>
-                                            <span className="text-[10px] text-slate-500">SVG-to-BIM conversion for 2D floorplans.</span>
-                                        </div>
-                                    </li>
                                 </ul>
+                            </div>
+                        </div>
+
+                        {/* VR / SPATIAL COMPUTING SECTION */}
+                        <div className="grid grid-cols-1 gap-6 pt-4 border-t border-slate-200">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <Glasses size={14} /> Spatial Computing & Hardware
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-white/40 p-4 rounded-xl border border-white">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Glasses size={16} className="text-indigo-600"/>
+                                        <span className="text-xs font-bold text-slate-700">WebXR Compatibility</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                                        Engine is <strong>WebXR compliant</strong>, supporting <strong>Meta Quest (2/3/Pro)</strong>, <strong>Apple Vision Pro</strong>, and tethered PC-VR (HTC Vive, Index) via browser.
+                                    </p>
+                                </div>
+                                <div className="bg-white/40 p-4 rounded-xl border border-white">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <MonitorSmartphone size={16} className="text-blue-600"/>
+                                        <span className="text-xs font-bold text-slate-700">Hardware Handshake</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                                        <strong>Automatic Recognition:</strong> No manual driver installation required. The kernel automatically detects headset type and input capabilities (Hands vs. Controllers) upon session entry.
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
@@ -496,10 +719,13 @@
         // --- 5. MAIN APP ---
 
         function TraxApp() {
+            // -- State --
             const [levels, setLevels] = useState(() => JSON.parse(localStorage.getItem('trax_levels')) || [{ id: 'L1', name: 'Level 1', elevation: 0 }]);
             const [activeLevelId, setActiveLevelId] = useState('L1');
             const [elements, setElements] = useState(() => JSON.parse(localStorage.getItem('trax_elements')) || []);
             const [materials, setMaterials] = useState(() => JSON.parse(localStorage.getItem('trax_materials')) || INITIAL_MATERIALS);
+            // New Project Meta State
+            const [projectMeta, setProjectMeta] = useState(() => JSON.parse(localStorage.getItem('trax_project_meta')) || DEFAULT_PROJECT_META);
             
             const [selectedId, setSelectedId] = useState(null);
             const [mode, setMode] = useState('select'); 
@@ -509,6 +735,7 @@
             const [snap, setSnap] = useState(true);
             
             const [showInfo, setShowInfo] = useState(true);
+            const [showProject, setShowProject] = useState(false);
             const [showImport, setShowImport] = useState(false);
             const [showCostDrivers, setShowCostDrivers] = useState(false);
             const [svgInput, setSvgInput] = useState("");
@@ -517,9 +744,11 @@
             const activeLevel = levels.find(l => l.id === activeLevelId);
             const selectedElement = useMemo(() => elements.find(e => e.id === selectedId), [elements, selectedId]);
 
+            // Persistence
             useEffect(() => { localStorage.setItem('trax_levels', JSON.stringify(levels)); }, [levels]);
             useEffect(() => { localStorage.setItem('trax_elements', JSON.stringify(elements)); }, [elements]);
             useEffect(() => { localStorage.setItem('trax_materials', JSON.stringify(materials)); }, [materials]);
+            useEffect(() => { localStorage.setItem('trax_project_meta', JSON.stringify(projectMeta)); }, [projectMeta]);
 
             const updateLevel = (id, newElev) => {
                 setLevels(levels.map(l => l.id === id ? { ...l, elevation: newElev } : l));
@@ -541,6 +770,7 @@
             const projectStats = useMemo(() => {
                 let totalCost = 0;
                 let totalCount = 0;
+                let totalGFA = 0;
                 const levelStats = {};
                 levels.forEach(l => levelStats[l.id] = { name: l.name, cost: 0, gfa: 0, items: 0 });
 
@@ -558,7 +788,9 @@
                     let cost = (mat.unit === 'item') ? mat.cost : vol * mat.cost;
 
                     if(el.type === 'IFCSLAB') {
-                        if(levelStats[lvl]) levelStats[lvl].gfa += (p.width * p.depth);
+                        const area = p.width * p.depth;
+                        if(levelStats[lvl]) levelStats[lvl].gfa += area;
+                        totalGFA += area;
                     }
                     if(levelStats[lvl]) {
                         levelStats[lvl].cost += cost;
@@ -567,7 +799,7 @@
                     totalCost += cost;
                     totalCount++;
                 });
-                return { totalCost, totalCount, levelStats };
+                return { totalCost, totalCount, totalGFA, levelStats };
             }, [elements, materials, levels]);
 
             const parseSVG = () => {
@@ -609,18 +841,43 @@
             };
 
              const exportCSV = () => {
+                // Header Metadata
+                const metaRows = [
+                    ["PROJECT METADATA"],
+                    ["Title", projectMeta.title],
+                    ["Code", projectMeta.code],
+                    ["Lead", projectMeta.lead],
+                    ["Status", projectMeta.status],
+                    ["Target Budget", projectMeta.targetBudget],
+                    ["Actual Cost", projectStats.totalCost],
+                    [],
+                    ["OBJECT MANIFEST"]
+                ];
+
                 const headers = ["Level", "Tag", "Type", "Material", "LocalX", "LocalY", "LocalZ", "Unit Cost", "Total Cost"];
                 const rows = elements.map(el => {
                     const mat = materials[el.data.materialKey] || { name: 'Unknown', cost: 0 };
                     const lvl = levels.find(l => l.id === el.levelId)?.name || 'Unknown';
                     let cost = 0; 
+                    // Simple Calc for export
+                    let vol = 1;
+                    const p = el.params;
+                    if(el.type === 'IFCWALL') vol = p.length * p.height * p.thickness;
+                    else if(el.type === 'IFCCOLUMN') vol = p.height * p.width * p.depth;
+                    else if(el.type === 'IFCSLAB') vol = p.width * 0.2 * p.depth;
+                    cost = (mat.unit === 'item') ? mat.cost : vol * mat.cost;
+
                     return [lvl, el.tag, el.type, mat.name, el.position[0], el.position[1], el.position[2], mat.cost, cost].join(",");
                 });
-                const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+                
+                const metaString = metaRows.map(r => r.join(",")).join("\n");
+                const dataString = [headers.join(","), ...rows].join("\n");
+                
+                const csvContent = "data:text/csv;charset=utf-8," + metaString + "\n" + dataString;
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "trax_audit_data.csv");
+                link.setAttribute("download", `TRAX_${projectMeta.code}_Manifest.csv`);
                 document.body.appendChild(link);
                 link.click();
             };
@@ -641,6 +898,12 @@
                         </div>
                         
                         <div className="flex items-center gap-4">
+                            <Tooltip text="Project Dashboard & Metering">
+                                <button onClick={() => setShowProject(true)} className="p-2 rounded-lg hover:bg-slate-200 text-blue-600 hover:text-blue-800 transition-colors bg-blue-50/50 border border-blue-100">
+                                    <Briefcase size={18} />
+                                </button>
+                            </Tooltip>
+                            
                             <Tooltip text="System Info">
                                 <button onClick={() => setShowInfo(true)} className="p-2 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors">
                                     <Info size={18} />
@@ -725,8 +988,11 @@
                             <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">
                                 ${(projectStats.totalCost / 1000).toFixed(1)}k
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-1 font-mono font-medium">
-                                {projectStats.totalCount} ASSETS TRACKED ACROSS {levels.length} LEVELS
+                            <div className="text-[10px] text-slate-500 mt-1 font-mono font-medium flex justify-between">
+                                <span>{projectStats.totalCount} ASSETS</span>
+                                <span className={projectStats.totalCost > projectMeta.targetBudget ? "text-red-500 font-bold" : "text-emerald-600"}>
+                                    {((projectStats.totalCost / projectMeta.targetBudget) * 100).toFixed(0)}% BUD
+                                </span>
                             </div>
                         </div>
 
@@ -742,8 +1008,17 @@
                         />
                     </div>
 
-                    {/* INFO SCREEN */}
+                    {/* SCREENS */}
                     {showInfo && <InfoScreen onClose={() => setShowInfo(false)} />}
+                    {showProject && (
+                        <ProjectScreen 
+                            meta={projectMeta} 
+                            setMeta={setProjectMeta} 
+                            stats={projectStats}
+                            levels={levels}
+                            onClose={() => setShowProject(false)} 
+                        />
+                    )}
 
                     {/* IMPORT MODAL */}
                     {showImport && (
