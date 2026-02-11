@@ -66,7 +66,7 @@
             Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
             DollarSign, FileText, ScanLine, Upload, Zap, Image as ImageIcon, 
             FileImage, TrendingUp, Grid3X3, Calculator, PieChart, FileSpreadsheet, Plus, Copy, Eye, EyeOff,
-            ToggleLeft, ToggleRight, LayoutTemplate, Magnet
+            ToggleLeft, ToggleRight, LayoutTemplate, Magnet, Info, X, Cpu, Database
         } from 'lucide-react';
         import * as THREE from 'three';
         import { v4 as uuidv4 } from 'uuid';
@@ -167,6 +167,84 @@
         });
 
         // --- 3. SUB-COMPONENTS (With Interaction Fix) ---
+
+        const InfoScreen = ({ onClose }) => (
+            <div className="absolute inset-0 z-50 bg-slate-950/90 flex items-center justify-center p-8 backdrop-blur-md animate-in fade-in duration-300">
+                <div className="glass-panel rounded-2xl p-8 w-full max-w-4xl max-h-full overflow-y-auto border border-blue-500/30 shadow-2xl shadow-blue-900/20 relative">
+                    <button onClick={onClose} className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+                        <X size={24} />
+                    </button>
+                    
+                    <div className="flex flex-col gap-6">
+                        <div className="flex items-center gap-4 border-b border-slate-800 pb-6">
+                            <div className="w-16 h-16 bg-blue-600/20 rounded-2xl flex items-center justify-center border border-blue-500/50">
+                                <Zap className="text-blue-400 w-8 h-8" />
+                            </div>
+                            <div>
+                                <h1 className="text-3xl font-black tracking-tighter text-white mb-1">TRAX <span className="text-blue-500">KERNEL</span></h1>
+                                <p className="text-sm font-mono text-blue-300/60 tracking-widest">DATA INTEGRATED MANAGEMENT AUDITOR v2.1</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                    <Cpu size={14} /> System Architecture
+                                </h3>
+                                <p className="text-sm text-slate-300 leading-relaxed">
+                                    TRAX is a high-performance BIM (Building Information Modeling) kernel engineered for real-time facility auditing and cost estimation. Built on a hybrid <strong>React-Three-Fiber</strong> engine, it bypasses traditional heavy CAD overhead by utilizing lightweight parametric schemas.
+                                </p>
+                                <p className="text-sm text-slate-300 leading-relaxed">
+                                    The system features a <strong>Relative Coordinate Level Manager</strong>, allowing for dynamic vertical stacking of floorplates without destructive coordinate resetting. State is managed via a persistent local graph, ensuring session continuity across reloads.
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                    <Database size={14} /> Core Capabilities
+                                </h3>
+                                <ul className="space-y-3">
+                                    <li className="flex items-start gap-3">
+                                        <div className="p-1.5 bg-emerald-900/30 rounded text-emerald-400 mt-0.5"><DollarSign size={12}/></div>
+                                        <div>
+                                            <strong className="text-slate-200 text-xs block">Real-Time Cost-OS</strong>
+                                            <span className="text-[10px] text-slate-400">Instant valuation based on parametric volume calculations and live material unit cost drivers.</span>
+                                        </div>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <div className="p-1.5 bg-purple-900/30 rounded text-purple-400 mt-0.5"><Layers size={12}/></div>
+                                        <div>
+                                            <strong className="text-slate-200 text-xs block">Ghosting Context Engine</strong>
+                                            <span className="text-[10px] text-slate-400">Active level isolation with transparent context rendering for vertical awareness.</span>
+                                        </div>
+                                    </li>
+                                     <li className="flex items-start gap-3">
+                                        <div className="p-1.5 bg-amber-900/30 rounded text-amber-400 mt-0.5"><FileImage size={12}/></div>
+                                        <div>
+                                            <strong className="text-slate-200 text-xs block">Vector Extrusion Pipeline</strong>
+                                            <span className="text-[10px] text-slate-400">Direct SVG-to-BIM conversion, transforming 2D floorplans into 3D semantic objects.</span>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 mt-2">
+                            <div className="flex justify-between items-center">
+                                <div className="flex gap-8 text-[10px] font-mono text-slate-500">
+                                    <span>RENDER: WEBGL2</span>
+                                    <span>PRECISION: FP32</span>
+                                    <span>STATE: PERSISTENT</span>
+                                </div>
+                                <button onClick={onClose} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-xs font-bold transition shadow-lg shadow-blue-600/20">
+                                    INITIALIZE SYSTEM
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
 
         const LevelManager = ({ levels, activeLevelId, setActiveLevelId, addLevel, updateLevel, projectStats }) => (
             <div className="flex flex-col gap-4 h-full pointer-events-none">
@@ -376,7 +454,8 @@
             const [viewMode, setViewMode] = useState('GHOST');
             const [layerVis, setLayerVis] = useState({'IFCWALL': true, 'IFCCOLUMN': true, 'IFCSLAB': true, 'IFCFURNISHING': true});
             const [snap, setSnap] = useState(true);
-
+            
+            const [showInfo, setShowInfo] = useState(true); // Default to true on load
             const [showImport, setShowImport] = useState(false);
             const [showCostDrivers, setShowCostDrivers] = useState(false);
             const [svgInput, setSvgInput] = useState("");
@@ -521,6 +600,10 @@
                         </div>
                         
                         <div className="flex items-center gap-4">
+                            <button onClick={() => setShowInfo(true)} className="p-2 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+                                <Info size={16} />
+                            </button>
+
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-slate-900/50 p-1 rounded">
                                 <button onClick={() => setSnap(!snap)} className={`p-1.5 rounded flex items-center gap-1 ${snap ? 'bg-blue-600 text-white' : 'hover:bg-slate-700'}`}>
                                     <Magnet size={14}/> {snap ? 'SNAP ON' : 'SNAP OFF'}
@@ -596,6 +679,9 @@
                             INITIAL_MATERIALS={INITIAL_MATERIALS}
                         />
                     </div>
+
+                    {/* INFO SCREEN */}
+                    {showInfo && <InfoScreen onClose={() => setShowInfo(false)} />}
 
                     {/* IMPORT MODAL */}
                     {showImport && (
