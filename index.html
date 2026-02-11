@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRAX | Data Integrated Management Auditor</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "three": "https://esm.sh/three@0.160.0",
+                "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+                "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber",
+                "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react",
+                "uuid": "https://esm.sh/uuid@9.0.1",
+                "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react"
+            }
+        }
+    </script>
+
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700;800&display=swap');
+        
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 2px; }
+        
+        body { 
+            overflow: hidden; 
+            background-color: #020617; 
+            font-family: 'JetBrains Mono', monospace; 
+            color: #e2e8f0;
+        }
+        
+        /* Glass Panel with better visibility */
+        .glass-panel { 
+            background: rgba(15, 23, 42, 0.95); 
+            backdrop-filter: blur(20px); 
+            border: 1px solid rgba(59, 130, 246, 0.3); 
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); 
+        }
+        
+        #root { height: 100vh; width: 100vw; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Main Application Script -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useRef, useEffect, useMemo, useCallback, Suspense } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useThree } from '@react-three/fiber';
+        import { OrbitControls, Grid, Html, useCursor, TransformControls, PerspectiveCamera, Environment, Text } from '@react-three/drei';
+        import { 
+            Box, Layers, PenTool, Trash2, MousePointer, Undo,
+            Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
+            DollarSign, FileText, ScanLine, Upload, Zap, Image as ImageIcon, 
+            FileImage, TrendingUp, Grid3X3, Calculator, PieChart, FileSpreadsheet, Plus, Copy, Eye, EyeOff,
+            ToggleLeft, ToggleRight, LayoutTemplate, Magnet
+        } from 'lucide-react';
+        import * as THREE from 'three';
+        import { v4 as uuidv4 } from 'uuid';
+
+        // --- 1. CONFIGURATION ---
+
+        const THEME = {
+            primary: '#3b82f6', 
+            accent: '#f59e0b',
+            grid: '#1e293b',
+        };
+
+        const INITIAL_MATERIALS = {
+            'CONCRETE_C25': { id: 'MAT-01', name: 'Concrete C25', cost: 120, unit: 'm³' },
+            'STEEL_S355':   { id: 'MAT-02', name: 'Steel S355', cost: 2400, unit: 'ton' },
+            'GLASS_DBL':    { id: 'MAT-03', name: 'Glazing Dbl', cost: 450, unit: 'm²' },
+            'COMPOSITE':    { id: 'MAT-04', name: 'Comp Panel', cost: 85, unit: 'm²' },
+            'FURNITURE':    { id: 'MAT-05', name: 'Furnishing', cost: 500, unit: 'item' },
+        };
+
+        const IFC_MAPPING = {
+            WALL: { type: 'IFCWALL', prefix: 'WAL', material: 'CONCRETE_C25' },
+            COLUMN: { type: 'IFCCOLUMN', prefix: 'COL', material: 'STEEL_S355' },
+            FURNITURE: { type: 'IFCFURNISHING', prefix: 'FUR', material: 'FURNITURE' },
+            SLAB: { type: 'IFCSLAB', prefix: 'SLB', material: 'CONCRETE_C25' }
+        };
+
+        const LAYER_DEFS = {
+            'IFCWALL': { label: 'WALLS', icon: Box, color: '#94a3b8' },
+            'IFCCOLUMN': { label: 'STRUCTURE', icon: Grid3X3, color: '#f59e0b' },
+            'IFCSLAB': { label: 'SLABS', icon: Layers, color: '#64748b' },
+            'IFCFURNISHING': { label: 'FURNITURE', icon: LayoutTemplate, color: '#a78bfa' }
+        };
+
+        const GRID_SIZE = 10;
+
+        // --- 2. ENGINE COMPONENTS (Optimized) ---
+
+        const BimElement = React.memo(({ element, isSelected, onSelect, mode, onTransformEnd, setOrbitEnabled, materialDb, isGhosted, snap }) => {
+            const [hovered, setHover] = useState(false);
+            const meshRef = useRef();
+            useCursor(hovered, 'pointer', 'auto');
+
+            const dims = useMemo(() => {
+                const p = element.params;
+                if (element.type === 'IFCWALL') return [Math.max(0.1, p.length), Math.max(0.1, p.height), Math.max(0.05, p.thickness)];
+                if (element.type === 'IFCSLAB') return [Math.max(1, p.width), 0.2, Math.max(1, p.depth)];
+                return [Math.max(0.1, p.width), Math.max(0.1, p.height), Math.max(0.1, p.depth)];
+            }, [element.params, element.type]);
+
+            const showGizmo = isSelected && ['translate', 'rotate'].includes(mode);
+            const opacity = isGhosted ? 0.1 : (isSelected ? 0.9 : 0.8);
+            const color = isSelected ? THEME.accent : element.color;
+            
+            const meshPos = [0, dims[1]/2, 0]; 
+
+            return (
+                <group position={element.position} rotation={element.rotation}>
+                    <group
+                        ref={meshRef}
+                        onClick={(e) => { e.stopPropagation(); onSelect(element.id); }}
+                        onPointerOver={() => setHover(true)}
+                        onPointerOut={() => setHover(false)}
+                    >
+                        <mesh castShadow={!isGhosted} receiveShadow position={meshPos}>
+                            <boxGeometry args={dims} />
+                            <meshStandardMaterial 
+                                color={color}
+                                roughness={0.2} 
+                                metalness={0.6}
+                                transparent={true}
+                                opacity={opacity}
+                                depthWrite={!isGhosted}
+                            />
+                            <lineSegments>
+                                <edgesGeometry args={[new THREE.BoxGeometry(...dims)]} />
+                                <lineBasicMaterial color={isSelected ? '#ffffff' : '#000000'} linewidth={1} transparent opacity={isGhosted ? 0.05 : 0.2} />
+                            </lineSegments>
+                        </mesh>
+                    </group>
+
+                    {showGizmo && meshRef.current && (
+                        <TransformControls 
+                            object={meshRef.current.parent} 
+                            mode={mode === 'rotate' ? 'rotate' : 'translate'} 
+                            size={0.8}
+                            translationSnap={snap ? 0.5 : null}
+                            rotationSnap={snap ? Math.PI / 4 : null}
+                            onMouseDown={() => setOrbitEnabled(false)}
+                            onMouseUp={(e) => { 
+                                setOrbitEnabled(true);
+                                if (e?.target?.object) setTimeout(() => onTransformEnd(element.id, e.target.object), 0);
+                            }}
+                        />
+                    )}
+                </group>
+            );
+        });
+
+        // --- 3. SUB-COMPONENTS (With Interaction Fix) ---
+
+        const LevelManager = ({ levels, activeLevelId, setActiveLevelId, addLevel, updateLevel, projectStats }) => (
+            <div className="flex flex-col gap-4 h-full pointer-events-none">
+                {/* Level List - Re-enabled pointer events */}
+                <div className="glass-panel rounded-xl p-4 flex flex-col gap-2 max-h-[40%] pointer-events-auto">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-xs font-bold text-slate-400 flex items-center gap-2"><Layers size={12}/> LEVELS</h3>
+                        <button onClick={addLevel} className="p-1 hover:bg-blue-600 rounded text-blue-400 hover:text-white transition"><Plus size={14}/></button>
+                    </div>
+                    <div className="space-y-1 overflow-y-auto pr-1">
+                        {[...levels].reverse().map(l => (
+                            <div 
+                                key={l.id}
+                                onClick={() => setActiveLevelId(l.id)}
+                                className={`p-2 rounded cursor-pointer border transition-all flex justify-between items-center group ${activeLevelId === l.id ? 'bg-blue-900/40 border-blue-500' : 'bg-slate-900/40 border-transparent hover:border-slate-700'}`}
+                            >
+                                <div>
+                                    <div className={`text-xs font-bold ${activeLevelId === l.id ? 'text-white' : 'text-slate-400'}`}>{l.name}</div>
+                                    <div className="text-[9px] font-mono text-slate-600 flex items-center gap-1">
+                                        ELEV: 
+                                        <input 
+                                            type="number" 
+                                            value={l.elevation} 
+                                            onClick={(e) => e.stopPropagation()}
+                                            onChange={(e) => updateLevel(l.id, parseFloat(e.target.value))}
+                                            className="w-12 bg-transparent border-b border-slate-700 focus:border-blue-500 text-slate-400 focus:text-white outline-none text-right"
+                                        />m
+                                    </div>
+                                </div>
+                                {activeLevelId === l.id && <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"></div>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Level Stats - Re-enabled pointer events */}
+                <div className="glass-panel rounded-xl p-4 flex-1 pointer-events-auto">
+                    <h3 className="text-xs font-bold text-slate-400 flex items-center gap-2 mb-3"><Calculator size={12}/> LEVEL METRICS</h3>
+                    <div className="space-y-4">
+                        <div>
+                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">GROSS FLOOR AREA</div>
+                            <div className="text-2xl font-black text-white">{projectStats.levelStats[activeLevelId]?.gfa.toFixed(1) || 0} <span className="text-xs font-normal text-slate-500">m²</span></div>
+                        </div>
+                        <div>
+                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">ASSET COUNT</div>
+                            <div className="text-xl font-bold text-blue-400">{projectStats.levelStats[activeLevelId]?.items || 0} <span className="text-xs font-normal text-slate-500">OBJS</span></div>
+                        </div>
+                        <div className="h-px bg-slate-800"></div>
+                        <div>
+                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">VALUATION</div>
+                            <div className="text-xl font-bold text-emerald-400">${((projectStats.levelStats[activeLevelId]?.cost || 0) / 1000).toFixed(1)}k</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const PropertyPanel = ({ selectedElement, materials, setElements, setSelectedId, elements, showCostDrivers, setShowCostDrivers, setMaterials, INITIAL_MATERIALS }) => (
+             /* Re-enabled pointer events on this panel */
+             <div className="glass-panel rounded-xl p-4 flex-1 overflow-auto animate-in slide-in-from-right-4 pointer-events-auto">
+                {showCostDrivers ? (
+                    <div>
+                        <h3 className="text-xs font-bold text-yellow-500 mb-4 flex items-center gap-2"><Settings size={12}/> COST DRIVERS</h3>
+                        <div className="space-y-4">
+                            {Object.entries(materials).map(([key, mat]) => (
+                                <div key={key} className="group">
+                                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                                        <span>{mat.name}</span>
+                                        <span className="font-mono opacity-50">per {mat.unit}</span>
+                                    </div>
+                                    <div className="relative">
+                                        <span className="absolute left-2 top-1.5 text-xs text-slate-500">$</span>
+                                        <input 
+                                            type="number" 
+                                            value={mat.cost}
+                                            onChange={(e) => setMaterials({...materials, [key]: {...mat, cost: parseFloat(e.target.value)}})}
+                                            className="w-full bg-slate-800/50 border border-slate-700 rounded p-1.5 pl-5 text-xs font-bold text-white focus:border-yellow-500 focus:outline-none transition-colors"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                            <button onClick={() => setMaterials(INITIAL_MATERIALS)} className="w-full py-2 text-[10px] text-slate-500 hover:text-white border border-dashed border-slate-700 rounded hover:border-slate-500 mt-4">RESET DEFAULTS</button>
+                        </div>
+                    </div>
+                ) : selectedElement ? (
+                    <div>
+                        <div className="flex justify-between items-start mb-4 border-b border-slate-700 pb-2">
+                            <div>
+                                <div className="text-sm font-black text-white">{selectedElement.tag}</div>
+                                <div className="text-[10px] font-mono text-blue-400">{selectedElement.id.slice(0,8)}</div>
+                            </div>
+                            <button onClick={() => {setElements(elements.filter(e=>e.id!==selectedElement.id)); setSelectedId(null)}} className="text-red-400 hover:text-red-300 bg-red-900/20 p-1.5 rounded"><Trash2 size={14}/></button>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            <div>
+                                <div className="text-[9px] text-slate-500 font-bold mb-1">TYPE</div>
+                                <div className="bg-slate-800 p-2 rounded text-xs text-blue-200 font-mono">{selectedElement.type}</div>
+                            </div>
+                            <div>
+                                <div className="text-[9px] text-slate-500 font-bold mb-1">MATERIAL</div>
+                                <select 
+                                    value={selectedElement.data.materialKey}
+                                    onChange={(e) => setElements(elements.map(el => el.id === selectedElement.id ? {...el, data: {...el.data, materialKey: e.target.value}} : el))}
+                                    className="w-full bg-slate-800 p-2 rounded text-xs text-yellow-400 font-bold focus:outline-none cursor-pointer"
+                                >
+                                    {Object.entries(materials).map(([k, m]) => <option key={k} value={k}>{m.name}</option>)}
+                                </select>
+                            </div>
+                            {/* Parametric Inputs */}
+                            {selectedElement.type === 'IFCWALL' && (
+                                <>
+                                    <div>
+                                        <div className="text-[9px] text-slate-500 font-bold mb-1">LENGTH (m)</div>
+                                        <input type="number" step="0.1" value={selectedElement.params.length} 
+                                            onChange={e => setElements(elements.map(el => el.id===selectedElement.id ? {...el, params:{...el.params, length: parseFloat(e.target.value)}} : el))}
+                                            className="w-full bg-slate-800 p-2 rounded text-xs text-white" />
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] text-slate-500 font-bold mb-1">HEIGHT (m)</div>
+                                        <input type="number" step="0.1" value={selectedElement.params.height} 
+                                            onChange={e => setElements(elements.map(el => el.id===selectedElement.id ? {...el, params:{...el.params, height: parseFloat(e.target.value)}} : el))}
+                                            className="w-full bg-slate-800 p-2 rounded text-xs text-white" />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center opacity-30">
+                        <MousePointer size={32} />
+                        <p className="text-xs mt-2 text-center font-bold">SELECT OBJECT</p>
+                    </div>
+                )}
+            </div>
+        );
+
+        // --- 4. SCENE GRAPH ---
+
+        const SceneGraph = ({ levels, elements, activeLevelId, viewMode, layerVis, materials, mode, selectedId, setSelectedId, handleUpdate, setOrbitEnabled, snap }) => {
+            return (
+                <>
+                    <ambientLight intensity={0.5} />
+                    <directionalLight position={[20, 30, 10]} intensity={1} castShadow shadow-mapSize={[2048,2048]} color="#ffffff" />
+                    <Environment preset="city" />
+
+                    {levels.map(level => {
+                        const isLevelActive = level.id === activeLevelId;
+                        
+                        // Filter Elements for this Level
+                        const levelElements = elements.filter(el => el.levelId === level.id);
+
+                        return (
+                            <group key={level.id} position={[0, level.elevation, 0]}>
+                                {/* Grid Helper only for active level */}
+                                {isLevelActive && (
+                                    <>
+                                        <Grid infiniteGrid cellSize={1} sectionSize={GRID_SIZE} sectionColor="#3b82f6" cellColor="#1e293b" fadeDistance={40} />
+                                        <Text position={[12, 0, 12]} rotation={[-Math.PI/2, 0, 0]} fontSize={2} color="#3b82f6" fillOpacity={0.2}>
+                                            {level.name.toUpperCase()}
+                                        </Text>
+                                    </>
+                                )}
+
+                                {levelElements.map(el => {
+                                    if (!layerVis[el.type]) return null;
+                                    
+                                    // View Mode Logic
+                                    if (viewMode === 'ISOLATE' && !isLevelActive) return null;
+                                    const isGhosted = (viewMode === 'GHOST' && !isLevelActive);
+
+                                    return (
+                                        <BimElement 
+                                            key={el.id} 
+                                            element={el} 
+                                            isSelected={selectedId === el.id} 
+                                            onSelect={setSelectedId} 
+                                            mode={mode} 
+                                            onTransformEnd={handleUpdate}
+                                            setOrbitEnabled={setOrbitEnabled}
+                                            materialDb={materials}
+                                            isGhosted={isGhosted}
+                                            snap={snap}
+                                        />
+                                    );
+                                })}
+                            </group>
+                        );
+                    })}
+                </>
+            );
+        };
+
+        // --- 5. MAIN APP ---
+
+        function TraxApp() {
+            // -- State --
+            // Changed keys to 'trax_' for rebranding
+            const [levels, setLevels] = useState(() => JSON.parse(localStorage.getItem('trax_levels')) || [{ id: 'L1', name: 'Level 1', elevation: 0 }]);
+            const [activeLevelId, setActiveLevelId] = useState('L1');
+            const [elements, setElements] = useState(() => JSON.parse(localStorage.getItem('trax_elements')) || []);
+            const [materials, setMaterials] = useState(() => JSON.parse(localStorage.getItem('trax_materials')) || INITIAL_MATERIALS);
+            
+            const [selectedId, setSelectedId] = useState(null);
+            const [mode, setMode] = useState('select'); 
+            const [orbitEnabled, setOrbitEnabled] = useState(true);
+            const [viewMode, setViewMode] = useState('GHOST');
+            const [layerVis, setLayerVis] = useState({'IFCWALL': true, 'IFCCOLUMN': true, 'IFCSLAB': true, 'IFCFURNISHING': true});
+            const [snap, setSnap] = useState(true);
+
+            const [showImport, setShowImport] = useState(false);
+            const [showCostDrivers, setShowCostDrivers] = useState(false);
+            const [svgInput, setSvgInput] = useState("");
+            const fileInputRef = useRef(null);
+
+            const activeLevel = levels.find(l => l.id === activeLevelId);
+            const selectedElement = useMemo(() => elements.find(e => e.id === selectedId), [elements, selectedId]);
+
+            // -- Persistence Hook --
+            useEffect(() => { localStorage.setItem('trax_levels', JSON.stringify(levels)); }, [levels]);
+            useEffect(() => { localStorage.setItem('trax_elements', JSON.stringify(elements)); }, [elements]);
+            useEffect(() => { localStorage.setItem('trax_materials', JSON.stringify(materials)); }, [materials]);
+
+            // -- Logic --
+
+            const updateLevel = (id, newElev) => {
+                setLevels(levels.map(l => l.id === id ? { ...l, elevation: newElev } : l));
+            };
+
+            const addLevel = () => {
+                const nextId = `L${levels.length + 1}`;
+                const prevElev = levels[levels.length-1].elevation;
+                setLevels([...levels, { id: nextId, name: `Level ${levels.length + 1}`, elevation: prevElev + 4 }]);
+                setActiveLevelId(nextId);
+            };
+
+            const handleUpdate = useCallback((id, obj) => {
+                // IMPORTANT: obj.position is LOCAL because the parent is the Level Group
+                setElements(prev => prev.map(el => 
+                    el.id === id ? { ...el, position: [obj.position.x, obj.position.y, obj.position.z], rotation: [obj.rotation.x, obj.rotation.y, obj.rotation.z] } : el
+                ));
+            }, []);
+
+            const projectStats = useMemo(() => {
+                let totalCost = 0;
+                let totalCount = 0;
+                const levelStats = {};
+                levels.forEach(l => levelStats[l.id] = { name: l.name, cost: 0, gfa: 0, items: 0 });
+
+                elements.forEach(el => {
+                    const matKey = el.data?.materialKey || 'CONCRETE_C25';
+                    const mat = materials[matKey] || materials['CONCRETE_C25'];
+                    const lvl = el.levelId || 'L1';
+                    
+                    let vol = 1;
+                    const p = el.params;
+                    if(el.type === 'IFCWALL') vol = p.length * p.height * p.thickness;
+                    else if(el.type === 'IFCCOLUMN') vol = p.height * p.width * p.depth;
+                    else if(el.type === 'IFCSLAB') vol = p.width * 0.2 * p.depth;
+
+                    let cost = (mat.unit === 'item') ? mat.cost : vol * mat.cost;
+
+                    if(el.type === 'IFCSLAB') {
+                        if(levelStats[lvl]) levelStats[lvl].gfa += (p.width * p.depth);
+                    }
+                    if(levelStats[lvl]) {
+                        levelStats[lvl].cost += cost;
+                        levelStats[lvl].items += 1;
+                    }
+                    totalCost += cost;
+                    totalCount++;
+                });
+                return { totalCost, totalCount, levelStats };
+            }, [elements, materials, levels]);
+
+            const parseSVG = () => {
+                try {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(svgInput, "image/svg+xml");
+                    const newEls = [];
+                    const errorNode = doc.querySelector('parsererror');
+                    if (errorNode) throw new Error("Invalid SVG");
+                    
+                    doc.querySelectorAll('line').forEach((line, i) => {
+                        const x1 = parseFloat(line.getAttribute('x1'));
+                        const y1 = parseFloat(line.getAttribute('y1'));
+                        const x2 = parseFloat(line.getAttribute('x2'));
+                        const y2 = parseFloat(line.getAttribute('y2'));
+                        if(isNaN(x1)) return;
+
+                        const dx = x2 - x1;
+                        const dz = y2 - y1;
+                        const len = Math.sqrt(dx*dx + dz*dz);
+                        const angle = Math.atan2(dx, dz);
+                        const midX = (x1 + x2)/2 - 10;
+                        const midZ = (y1 + y2)/2 - 10;
+                        
+                        // Position y=1.5 means center of 3m high wall is 1.5m above floor
+                        newEls.push({
+                            id: uuidv4(), tag: `WAL-${levels.length}${i}`, levelId: activeLevelId,
+                            type: 'IFCWALL', color: '#94a3b8',
+                            params: { length: len, height: 3, thickness: 0.2 },
+                            data: { materialKey: 'CONCRETE_C25' },
+                            position: [midX, 1.5, midZ], rotation: [0, angle, 0]
+                        });
+                    });
+
+                    // Add Default Slab
+                    newEls.push({
+                        id: uuidv4(), tag: `SLB-${activeLevelId}`, levelId: activeLevelId,
+                        type: 'IFCSLAB', color: '#64748b',
+                        params: { width: 20, depth: 20 },
+                        data: { materialKey: 'CONCRETE_C25' },
+                        position: [0, 0.1, 0], rotation: [0, 0, 0]
+                    });
+
+                    setElements(prev => [...prev, ...newEls]);
+                    setShowImport(false);
+                } catch (e) {
+                    alert("Import Failed: " + e.message);
+                }
+            };
+
+             const exportCSV = () => {
+                const headers = ["Level", "Tag", "Type", "Material", "LocalX", "LocalY", "LocalZ", "Unit Cost", "Total Cost"];
+                const rows = elements.map(el => {
+                    const mat = materials[el.data.materialKey] || { name: 'Unknown', cost: 0 };
+                    const lvl = levels.find(l => l.id === el.levelId)?.name || 'Unknown';
+                    let cost = 0; // ... calc logic repeated ... 
+                    return [lvl, el.tag, el.type, mat.name, el.position[0], el.position[1], el.position[2], mat.cost, cost].join(",");
+                });
+                const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "trax_audit_data.csv");
+                document.body.appendChild(link);
+                link.click();
+            };
+
+            return (
+                <div className="w-full h-screen bg-[#020617] text-slate-200 overflow-hidden relative select-none">
+                    
+                    {/* TOP BAR */}
+                    <div className="absolute top-0 left-0 right-0 h-16 glass-panel border-b border-blue-900/30 flex items-center justify-between px-6 z-20 pointer-events-auto">
+                        <div className="flex items-center gap-3">
+                            <Zap className="text-yellow-500 fill-yellow-500" size={20} />
+                            <div>
+                                <h1 className="text-lg font-black tracking-widest text-white leading-none">TRAX</h1>
+                                <div className="text-[9px] font-mono text-slate-500 tracking-[0.2em]">DATA INTEGRATED MANAGEMENT AUDITOR</div>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-slate-900/50 p-1 rounded">
+                                <button onClick={() => setSnap(!snap)} className={`p-1.5 rounded flex items-center gap-1 ${snap ? 'bg-blue-600 text-white' : 'hover:bg-slate-700'}`}>
+                                    <Magnet size={14}/> {snap ? 'SNAP ON' : 'SNAP OFF'}
+                                </button>
+                                <div className="w-px h-4 bg-slate-700"></div>
+                                <button onClick={() => setViewMode(v => v === 'ALL' ? 'GHOST' : (v === 'GHOST' ? 'ISOLATE' : 'ALL'))} className="p-1.5 rounded hover:bg-slate-700 flex items-center gap-1">
+                                    {viewMode === 'ALL' && <Eye size={14}/>}
+                                    {viewMode === 'GHOST' && <Layers size={14} className="text-blue-400"/>}
+                                    {viewMode === 'ISOLATE' && <EyeOff size={14} className="text-red-400"/>}
+                                    {viewMode}
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                {Object.entries(LAYER_DEFS).map(([type, def]) => {
+                                    const Icon = def.icon;
+                                    return (
+                                        <button key={type} onClick={() => setLayerVis(p => ({...p, [type]: !p[type]}))} className={`p-2 rounded ${layerVis[type] ? 'bg-slate-800 text-blue-400' : 'bg-slate-900 text-slate-600'}`}>
+                                            <Icon size={14}/>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-lg shadow-emerald-500/20">
+                                <FileSpreadsheet size={14} /> EXPORT
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* LEFT PANEL */}
+                    <div className="absolute left-4 top-24 bottom-4 w-64 z-10 pointer-events-none">
+                        <LevelManager 
+                            levels={levels} 
+                            activeLevelId={activeLevelId} 
+                            setActiveLevelId={setActiveLevelId} 
+                            addLevel={addLevel}
+                            updateLevel={updateLevel}
+                            projectStats={projectStats}
+                        />
+                    </div>
+
+                    {/* RIGHT PANEL */}
+                    <div className="absolute right-4 top-24 bottom-4 w-72 flex flex-col gap-4 z-10 pointer-events-none">
+                        <div className="glass-panel rounded-xl p-2 pointer-events-auto flex justify-center gap-2">
+                             <button onClick={() => setMode('select')} className={`p-2 rounded-lg ${mode === 'select' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}><MousePointer size={20}/></button>
+                             <button onClick={() => setMode('translate')} className={`p-2 rounded-lg ${mode === 'translate' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}><Axis3d size={20}/></button>
+                             <div className="w-px bg-slate-700 mx-1"></div>
+                             <button onClick={() => setShowImport(true)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><Upload size={20}/></button>
+                             <button onClick={() => setShowCostDrivers(!showCostDrivers)} className={`p-2 rounded-lg ${showCostDrivers ? 'bg-yellow-600 text-white' : 'text-yellow-500 hover:bg-slate-800'}`}><DollarSign size={20}/></button>
+                        </div>
+
+                        <div className="glass-panel rounded-xl p-4 pointer-events-auto">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-xs font-bold text-slate-400 flex items-center gap-2"><PieChart size={12}/> TOTAL PROJECT</h3>
+                            </div>
+                            <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">
+                                ${(projectStats.totalCost / 1000).toFixed(1)}k
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                                {projectStats.totalCount} ASSETS TRACKED ACROSS {levels.length} LEVELS
+                            </div>
+                        </div>
+
+                        <PropertyPanel 
+                            selectedElement={selectedElement} 
+                            materials={materials} 
+                            setElements={setElements} 
+                            setSelectedId={setSelectedId}
+                            elements={elements}
+                            showCostDrivers={showCostDrivers}
+                            setMaterials={setMaterials}
+                            INITIAL_MATERIALS={INITIAL_MATERIALS}
+                        />
+                    </div>
+
+                    {/* IMPORT MODAL */}
+                    {showImport && (
+                        <div className="absolute inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-8 backdrop-blur-sm">
+                            <div className="glass-panel rounded-2xl p-8 w-full max-w-2xl flex flex-col pointer-events-auto">
+                                <h2 className="text-xl font-bold text-white mb-2">IMPORT DATA TO <span className="text-blue-500">{activeLevel.name}</span></h2>
+                                <p className="text-xs text-slate-400 mb-6">IMPORTED GEOMETRY WILL BE FLATTENED AND EXTRUDED RELATIVE TO LEVEL ELEVATION ({activeLevel.elevation}m)</p>
+                                
+                                <div onClick={() => fileInputRef.current.click()} className="border-2 border-dashed border-slate-700 hover:border-blue-500 hover:bg-slate-800/50 rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer transition-all group mb-4">
+                                    <FileImage size={48} className="text-slate-600 group-hover:text-blue-400 mb-4"/>
+                                    <div className="text-sm font-bold text-slate-300">UPLOAD SVG FLOORPLAN</div>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept=".svg" onChange={(e) => {
+                                        const file = e.target.files[0];
+                                        if(!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = (ev) => setSvgInput(ev.target.result);
+                                        reader.readAsText(file);
+                                    }} />
+                                </div>
+
+                                <div className="flex justify-end gap-3">
+                                    <button onClick={() => setShowImport(false)} className="px-6 py-2 rounded text-slate-400 hover:text-white text-xs font-bold">CANCEL</button>
+                                    <button onClick={parseSVG} disabled={!svgInput} className="px-8 py-2 bg-blue-600 disabled:opacity-50 hover:bg-blue-500 text-white rounded text-xs font-bold transition">PROCESS IMPORT</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CANVAS */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-[#020617] to-[#111827]">
+                        <Suspense fallback={null}>
+                            <Canvas shadows dpr={[1, 2]} gl={{ preserveDrawingBuffer: true, antialias: true }}>
+                                <PerspectiveCamera makeDefault position={[30, 40, 30]} fov={35} />
+                                <OrbitControls makeDefault enableDamping dampingFactor={0.1} enabled={orbitEnabled} maxPolarAngle={Math.PI/2 - 0.1} />
+                                <SceneGraph 
+                                    levels={levels}
+                                    elements={elements}
+                                    activeLevelId={activeLevelId}
+                                    viewMode={viewMode}
+                                    layerVis={layerVis}
+                                    materials={materials}
+                                    mode={mode}
+                                    selectedId={selectedId}
+                                    setSelectedId={setSelectedId}
+                                    handleUpdate={handleUpdate}
+                                    setOrbitEnabled={setOrbitEnabled}
+                                    snap={snap}
+                                />
+                            </Canvas>
+                        </Suspense>
+                    </div>
+
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<TraxApp />);
+    </script>
+</body>
+</html>
