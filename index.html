@@ -105,6 +105,16 @@
 
         // --- 2. ENGINE COMPONENTS (Optimized) ---
 
+        // TOOLTIP COMPONENT
+        const Tooltip = ({ text, children }) => (
+            <div className="relative group flex flex-col items-center justify-center">
+                {children}
+                <div className="absolute top-full mt-2 px-2 py-1 bg-slate-950/90 border border-blue-500/30 rounded text-[9px] font-bold tracking-wide text-blue-100 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-[100] shadow-2xl backdrop-blur-md translate-y-1 group-hover:translate-y-0">
+                    {text}
+                </div>
+            </div>
+        );
+
         const BimElement = React.memo(({ element, isSelected, onSelect, mode, onTransformEnd, setOrbitEnabled, materialDb, isGhosted, snap }) => {
             const [hovered, setHover] = useState(false);
             const meshRef = useRef();
@@ -252,7 +262,9 @@
                 <div className="glass-panel rounded-xl p-4 flex flex-col gap-2 max-h-[40%] pointer-events-auto">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="text-xs font-bold text-slate-400 flex items-center gap-2"><Layers size={12}/> LEVELS</h3>
-                        <button onClick={addLevel} className="p-1 hover:bg-blue-600 rounded text-blue-400 hover:text-white transition"><Plus size={14}/></button>
+                        <Tooltip text="Create New Level">
+                            <button onClick={addLevel} className="p-1 hover:bg-blue-600 rounded text-blue-400 hover:text-white transition"><Plus size={14}/></button>
+                        </Tooltip>
                     </div>
                     <div className="space-y-1 overflow-y-auto pr-1">
                         {[...levels].reverse().map(l => (
@@ -336,7 +348,9 @@
                                 <div className="text-sm font-black text-white">{selectedElement.tag}</div>
                                 <div className="text-[10px] font-mono text-blue-400">{selectedElement.id.slice(0,8)}</div>
                             </div>
-                            <button onClick={() => {setElements(elements.filter(e=>e.id!==selectedElement.id)); setSelectedId(null)}} className="text-red-400 hover:text-red-300 bg-red-900/20 p-1.5 rounded"><Trash2 size={14}/></button>
+                            <Tooltip text="Delete Object">
+                                <button onClick={() => {setElements(elements.filter(e=>e.id!==selectedElement.id)); setSelectedId(null)}} className="text-red-400 hover:text-red-300 bg-red-900/20 p-1.5 rounded"><Trash2 size={14}/></button>
+                            </Tooltip>
                         </div>
                         
                         <div className="space-y-3">
@@ -600,37 +614,47 @@
                         </div>
                         
                         <div className="flex items-center gap-4">
-                            <button onClick={() => setShowInfo(true)} className="p-2 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
-                                <Info size={16} />
-                            </button>
+                            <Tooltip text="System Info">
+                                <button onClick={() => setShowInfo(true)} className="p-2 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+                                    <Info size={16} />
+                                </button>
+                            </Tooltip>
 
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-slate-900/50 p-1 rounded">
-                                <button onClick={() => setSnap(!snap)} className={`p-1.5 rounded flex items-center gap-1 ${snap ? 'bg-blue-600 text-white' : 'hover:bg-slate-700'}`}>
-                                    <Magnet size={14}/> {snap ? 'SNAP ON' : 'SNAP OFF'}
-                                </button>
+                                <Tooltip text="Toggle Grid Snap (0.5m)">
+                                    <button onClick={() => setSnap(!snap)} className={`p-1.5 rounded flex items-center gap-1 ${snap ? 'bg-blue-600 text-white' : 'hover:bg-slate-700'}`}>
+                                        <Magnet size={14}/> {snap ? 'SNAP ON' : 'SNAP OFF'}
+                                    </button>
+                                </Tooltip>
                                 <div className="w-px h-4 bg-slate-700"></div>
-                                <button onClick={() => setViewMode(v => v === 'ALL' ? 'GHOST' : (v === 'GHOST' ? 'ISOLATE' : 'ALL'))} className="p-1.5 rounded hover:bg-slate-700 flex items-center gap-1">
-                                    {viewMode === 'ALL' && <Eye size={14}/>}
-                                    {viewMode === 'GHOST' && <Layers size={14} className="text-blue-400"/>}
-                                    {viewMode === 'ISOLATE' && <EyeOff size={14} className="text-red-400"/>}
-                                    {viewMode}
-                                </button>
+                                <Tooltip text="Cycle View Modes: All / Ghost / Isolate">
+                                    <button onClick={() => setViewMode(v => v === 'ALL' ? 'GHOST' : (v === 'GHOST' ? 'ISOLATE' : 'ALL'))} className="p-1.5 rounded hover:bg-slate-700 flex items-center gap-1">
+                                        {viewMode === 'ALL' && <Eye size={14}/>}
+                                        {viewMode === 'GHOST' && <Layers size={14} className="text-blue-400"/>}
+                                        {viewMode === 'ISOLATE' && <EyeOff size={14} className="text-red-400"/>}
+                                        {viewMode}
+                                    </button>
+                                </Tooltip>
                             </div>
 
                             <div className="flex items-center gap-2">
                                 {Object.entries(LAYER_DEFS).map(([type, def]) => {
                                     const Icon = def.icon;
                                     return (
-                                        <button key={type} onClick={() => setLayerVis(p => ({...p, [type]: !p[type]}))} className={`p-2 rounded ${layerVis[type] ? 'bg-slate-800 text-blue-400' : 'bg-slate-900 text-slate-600'}`}>
-                                            <Icon size={14}/>
-                                        </button>
+                                        <Tooltip key={type} text={`Toggle ${def.label}`}>
+                                            <button onClick={() => setLayerVis(p => ({...p, [type]: !p[type]}))} className={`p-2 rounded ${layerVis[type] ? 'bg-slate-800 text-blue-400' : 'bg-slate-900 text-slate-600'}`}>
+                                                <Icon size={14}/>
+                                            </button>
+                                        </Tooltip>
                                     )
                                 })}
                             </div>
 
-                            <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-lg shadow-emerald-500/20">
-                                <FileSpreadsheet size={14} /> EXPORT
-                            </button>
+                            <Tooltip text="Export CSV Manifest">
+                                <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-lg shadow-emerald-500/20">
+                                    <FileSpreadsheet size={14} /> EXPORT
+                                </button>
+                            </Tooltip>
                         </div>
                     </div>
 
@@ -649,11 +673,19 @@
                     {/* RIGHT PANEL */}
                     <div className="absolute right-4 top-24 bottom-4 w-72 flex flex-col gap-4 z-10 pointer-events-none">
                         <div className="glass-panel rounded-xl p-2 pointer-events-auto flex justify-center gap-2">
-                             <button onClick={() => setMode('select')} className={`p-2 rounded-lg ${mode === 'select' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}><MousePointer size={20}/></button>
-                             <button onClick={() => setMode('translate')} className={`p-2 rounded-lg ${mode === 'translate' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}><Axis3d size={20}/></button>
-                             <div className="w-px bg-slate-700 mx-1"></div>
-                             <button onClick={() => setShowImport(true)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><Upload size={20}/></button>
-                             <button onClick={() => setShowCostDrivers(!showCostDrivers)} className={`p-2 rounded-lg ${showCostDrivers ? 'bg-yellow-600 text-white' : 'text-yellow-500 hover:bg-slate-800'}`}><DollarSign size={20}/></button>
+                            <Tooltip text="Select Mode">
+                                <button onClick={() => setMode('select')} className={`p-2 rounded-lg ${mode === 'select' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}><MousePointer size={20}/></button>
+                            </Tooltip>
+                            <Tooltip text="Move Mode">
+                                <button onClick={() => setMode('translate')} className={`p-2 rounded-lg ${mode === 'translate' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}><Axis3d size={20}/></button>
+                            </Tooltip>
+                            <div className="w-px bg-slate-700 mx-1"></div>
+                            <Tooltip text="Import Data">
+                                <button onClick={() => setShowImport(true)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"><Upload size={20}/></button>
+                            </Tooltip>
+                            <Tooltip text="Manual Cost Drivers">
+                                <button onClick={() => setShowCostDrivers(!showCostDrivers)} className={`p-2 rounded-lg ${showCostDrivers ? 'bg-yellow-600 text-white' : 'text-yellow-500 hover:bg-slate-800'}`}><DollarSign size={20}/></button>
+                            </Tooltip>
                         </div>
 
                         <div className="glass-panel rounded-xl p-4 pointer-events-auto">
