@@ -103,13 +103,13 @@
         };
 
         const DEFAULT_PROJECT_META = {
-            title: "Untitled Project",
-            code: "TRX-001",
-            lead: "Unassigned",
-            status: "DRAFT",
-            targetBudget: 500000,
-            targetGFA: 1500,
-            description: "Initial feasibility study."
+            title: "Executive Office Pod",
+            code: "TRX-DEMO-10M",
+            lead: "System Auditor",
+            status: "SCHEMATIC",
+            targetBudget: 15000,
+            targetGFA: 10,
+            description: "10m² demonstrator unit featuring structural steel columns, concrete shell, and composite furnishing elements to validate the Real-Time Cost-OS."
         };
 
         const IFC_MAPPING = {
@@ -839,7 +839,25 @@
             // -- State --
             const [levels, setLevels] = useState(() => JSON.parse(localStorage.getItem('trax_levels')) || [{ id: 'L1', name: 'Level 1', elevation: 0 }]);
             const [activeLevelId, setActiveLevelId] = useState('L1');
-            const [elements, setElements] = useState(() => JSON.parse(localStorage.getItem('trax_elements')) || []);
+            
+            // DEMO INITIALIZATION 
+            const [elements, setElements] = useState(() => {
+                const local = localStorage.getItem('trax_elements');
+                if (local) return JSON.parse(local);
+                
+                // Load Demo 10m2 Office if nothing found
+                return [
+                    { id: uuidv4(), tag: 'SLB-01', levelId: 'L1', type: 'IFCSLAB', color: '#475569', params: { width: 4.4, depth: 2.9 }, data: { materialKey: 'CONCRETE_C25' }, position: [0, 0, 0], rotation: [0, 0, 0] },
+                    { id: uuidv4(), tag: 'WAL-01', levelId: 'L1', type: 'IFCWALL', color: '#64748b', params: { length: 4.4, height: 3, thickness: 0.2 }, data: { materialKey: 'CONCRETE_C25' }, position: [0, 0.2, -1.35], rotation: [0, 0, 0] },
+                    { id: uuidv4(), tag: 'WAL-02', levelId: 'L1', type: 'IFCWALL', color: '#64748b', params: { length: 4.4, height: 3, thickness: 0.2 }, data: { materialKey: 'CONCRETE_C25' }, position: [0, 0.2, 1.35], rotation: [0, 0, 0] },
+                    { id: uuidv4(), tag: 'WAL-03', levelId: 'L1', type: 'IFCWALL', color: '#64748b', params: { length: 2.5, height: 3, thickness: 0.2 }, data: { materialKey: 'CONCRETE_C25' }, position: [2.1, 0.2, 0], rotation: [0, Math.PI/2, 0] },
+                    { id: uuidv4(), tag: 'WAL-04', levelId: 'L1', type: 'IFCWALL', color: '#64748b', params: { length: 2.5, height: 3, thickness: 0.2 }, data: { materialKey: 'CONCRETE_C25' }, position: [-2.1, 0.2, 0], rotation: [0, Math.PI/2, 0] },
+                    { id: uuidv4(), tag: 'COL-01', levelId: 'L1', type: 'IFCCOLUMN', color: '#f59e0b', params: { height: 3, width: 0.3, depth: 0.3 }, data: { materialKey: 'STEEL_S355' }, position: [-1.75, 0.2, -1.05], rotation: [0, 0, 0] },
+                    { id: uuidv4(), tag: 'COL-02', levelId: 'L1', type: 'IFCCOLUMN', color: '#f59e0b', params: { height: 3, width: 0.3, depth: 0.3 }, data: { materialKey: 'STEEL_S355' }, position: [1.75, 0.2, -1.05], rotation: [0, 0, 0] },
+                    { id: uuidv4(), tag: 'FUR-01', levelId: 'L1', type: 'IFCFURNISHING', color: '#8b5cf6', params: { width: 1.6, height: 0.75, depth: 0.8 }, data: { materialKey: 'COMPOSITE' }, position: [0, 0.2, -0.6], rotation: [0, 0, 0] },
+                    { id: uuidv4(), tag: 'FUR-02', levelId: 'L1', type: 'IFCFURNISHING', color: '#8b5cf6', params: { width: 0.6, height: 0.5, depth: 0.6 }, data: { materialKey: 'FURNITURE' }, position: [0, 0.2, 0.3], rotation: [0, 0, 0] }
+                ];
+            });
             const [materials, setMaterials] = useState(() => JSON.parse(localStorage.getItem('trax_materials')) || INITIAL_MATERIALS);
             // New Project Meta State
             const [projectMeta, setProjectMeta] = useState(() => JSON.parse(localStorage.getItem('trax_project_meta')) || DEFAULT_PROJECT_META);
@@ -1278,7 +1296,7 @@
                     <div className="absolute inset-0">
                         <Suspense fallback={null}>
                             <Canvas shadows dpr={[1, 2]} gl={{ preserveDrawingBuffer: true, antialias: true }}>
-                                <PerspectiveCamera makeDefault position={[30, 40, 30]} fov={35} />
+                                <PerspectiveCamera makeDefault position={[15, 20, 15]} fov={35} />
                                 <OrbitControls makeDefault enableDamping dampingFactor={0.1} enabled={orbitEnabled} maxPolarAngle={Math.PI/2 - 0.1} />
                                 <SceneGraph 
                                     levels={levels}
